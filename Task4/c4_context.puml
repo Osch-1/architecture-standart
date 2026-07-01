@@ -1,0 +1,38 @@
+@startuml c4_context_task4
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+LAYOUT_WITH_LEGEND()
+LAYOUT_TOP_DOWN()
+
+title Схема контекста — Доступ к ставкам для кол-центров (C4 System Context, TO-BE)
+
+' ===== Действующие лица =====
+Person(cc_operator, "Оператор кол-центра", "Консультирует клиентов\nпо ставкам депозитов")
+Person(partner_operator, "Оператор партнёрского\nкол-центра", "Консультирует клиентов\nпо ставкам из файла")
+Person(credit_analyst, "Кредитный аналитик", "Управляет базовыми\nставками в АБС")
+Person(bo_manager, "Менеджер бэк-офиса", "Назначает спецставки в АБС")
+
+' ===== Внутренние системы =====
+System(abs, "АБС", "Delphi, Oracle DB, PL/SQL\n+ Сервис интеграции депозитов (Java)\nВедение ставок, REST API ставок,\nгенерация файлов для SFTP")
+System(cc_system, "Система кол-центра", "Java Spring Boot, PostgreSQL\nОтображение ставок оператору")
+System(sftp, "SFTP-сервер", "Хранение файлов\nсо ставками в DMZ банка")
+
+' ===== Внешние системы =====
+System_Ext(partner_cc, "Система партнёрского\nкол-центра", "Внешняя система партнёра.\nПолучает ставки через SFTP")
+
+' ===== Связи: Сотрудники -> АБС =====
+Rel(credit_analyst, abs, "Управление базовыми ставками", "Delphi UI")
+Rel(bo_manager, abs, "Назначение спецставок", "Delphi UI")
+
+' ===== Связи: КЦ -> АБС =====
+Rel(cc_operator, cc_system, "Просмотр ставок,\nконсультация клиентов", "Web UI")
+Rel(cc_system, abs, "Запрос актуальных ставок", "REST API / HTTPS")
+
+' ===== Связи: АБС -> SFTP =====
+Rel(abs, sftp, "Выгрузка файла\nсо ставками", "SFTP")
+
+' ===== Связи: Партнёрский КЦ -> SFTP =====
+Rel(partner_operator, partner_cc, "Просмотр ставок из файла", "UI")
+Rel(partner_cc, sftp, "Получение файла\nсо ставками", "SFTP")
+
+@enduml

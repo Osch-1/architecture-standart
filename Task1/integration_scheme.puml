@@ -1,0 +1,56 @@
+@startuml integration_scheme
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+LAYOUT_WITH_LEGEND()
+LAYOUT_TOP_DOWN()
+
+title Схема интеграции — Банк «Стандарт» (C4 System Landscape, AS-IS)
+
+' ===== Persons =====
+Person(client, "Клиент", "Клиент банка.\nПодаёт заявку на открытие депозита в отделении")
+Person(fo_manager, "Менеджер фронт-офиса", "Сотрудник отделения.\nОбслуживает клиентов, оформляет депозиты")
+Person(cc_operator, "Оператор кол-центра", "Сотрудник кол-центра.\nПринимает звонки, заводит обращения")
+Person(credit_analyst, "Кредитный аналитик", "Отдел кредитования.\nРассчитывает ставки на основе кредитного риска")
+Person(bo_manager, "Менеджер бэк-офиса", "Отдел депозитов.\nОбрабатывает заявки, определяет ставки")
+
+' ===== Internal Systems =====
+System(site, "Сайт", "PHP, React.js\nПубличный сайт банка")
+System(ibank, "Интернет-банк", "ASP.NET MVC, MS SQL\nОнлайн-банкинг для клиентов")
+System(cc_system, "Система кол-центра", "Java Spring Boot, PostgreSQL\nУправление обращениями клиентов")
+System(abs, "АБС", "Delphi, Oracle DB, PL-SQL\nАвтоматизированная банковская система")
+System(sms_gw, "СМС-шлюз", "Отправка СМС-уведомлений")
+System(excel, "Excel", "Spreadsheet\nРучной расчёт ставок по депозитам")
+
+' ===== External Systems =====
+System_Ext(partner_cc, "Система партнёрского кол-центра", "Внешний кол-центр")
+System_Ext(telecom, "Телеком-оператор", "Доставка СМС-сообщений")
+
+' ===== Relationships: Client =====
+Rel_D(client, site, "Просматривает", "HTTPS")
+Rel_D(client, ibank, "Онлайн-банкинг", "HTTPS")
+Rel_D(client, fo_manager, "Визит в отделение")
+Rel_D(client, cc_system, "Уточняет детали", "Телефон")
+
+' ===== Relationships: Systems =====
+Rel(ibank, abs, "Прямое подключение\n⚠ проблема", "Oracle DB Link")
+Rel(cc_system, abs, "Передача обращений", "API")
+Rel(abs, sms_gw, "СМС-уведомления", "API")
+Rel(sms_gw, telecom, "Доставка СМС", "API")
+Rel(cc_system, partner_cc, "Переадресация", "API")
+
+' ===== Relationships: Persons → Systems =====
+Rel(fo_manager, abs, "Депозиты, документы", "Delphi UI")
+Rel(cc_operator, cc_system, "Обращения клиентов", "Web UI")
+Rel(bo_manager, abs, "Заявки, ставки", "Delphi UI")
+Rel(credit_analyst, abs, "Кредитный риск", "Delphi UI")
+Rel(credit_analyst, excel, "Ежедневные ставки")
+Rel(bo_manager, excel, "Спец. ставки")
+
+' ===== Relationships: Person ↔ Person (async / email) =====
+Rel(credit_analyst, bo_manager, "Ежедневные ставки", "Email")
+Rel(fo_manager, bo_manager, "Запрос ставки", "Email")
+Rel(bo_manager, credit_analyst, "Запрос кредитного риска", "Email")
+Rel(credit_analyst, bo_manager, "Данные кредитного риска", "Email")
+Rel(bo_manager, fo_manager, "Ответ со ставкой", "Email")
+
+@enduml

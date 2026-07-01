@@ -1,0 +1,74 @@
+@startuml c4_container
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+LAYOUT_WITH_LEGEND()
+LAYOUT_TOP_DOWN()
+
+title Диаграмма контейнеров — Банк «Стандарт» (C4 Container, TO-BE MVP)
+
+' ===== Действующие лица =====
+Person(client, "Клиент банка", "Существующий клиент ИБ")
+Person(visitor, "Посетитель сайта", "Потенциальный клиент")
+Person(fo_manager, "Менеджер фронт-офиса", "Оформляет депозиты в отделении")
+Person(cc_operator, "Оператор кол-центра", "Обработка заявок с сайта")
+Person(bo_manager, "Менеджер бэк-офиса", "Согласование заявок")
+Person(credit_analyst, "Кредитный аналитик", "Управление ставками")
+
+' ===== Интернет-банк =====
+System_Boundary(ib_boundary, "Интернет-банк") {
+    Container(ib_monolith, "ИБ Монолит", "ASP.NET MVC 4.5, .NET Framework 4.5", "Существующий функционал:\nплатежи, счета, UI,\nделегирует депозитные операции")
+    Container(deposit_ms, "Микросервис депозитов", ".NET, REST API", "NEW: логика депозитов,\nподача заявок, кэш ставок,\nвзаимодействие с брокером")
+    ContainerDb(ib_db, "БД интернет-банка", "MS SQL", "Данные клиентов,\nсчета, заявки")
+}
+
+' ===== Брокер сообщений =====
+Container(broker, "Брокер сообщений", "RabbitMQ", "NEW: асинхронный обмен\nмежду ИБ и АБС")
+
+' ===== АБС =====
+System_Boundary(abs_boundary, "АБС") {
+    Container(abs_client, "Клиент АБС", "Delphi Desktop", "UI для сотрудников:\nзаявки, ставки, договоры")
+    Container(msg_adapter, "Адаптер сообщений", "Java", "NEW: приём и отправка\nсообщений через брокер")
+    ContainerDb(abs_db, "БД АБС", "Oracle DB, PL/SQL", "Основная логика,\nучёт операций, ставки")
+}
+
+' ===== Внешние системы =====
+System_Ext(site, "Сайт", "PHP, React.js")
+System_Ext(cc_system, "Система кол-центра", "Java Spring Boot")
+System_Ext(sms_gw, "СМС-шлюз", "Телеком-оператор")
+
+' ===== Связи: Клиент -> ИБ =====
+Rel(client, ib_monolith, "Вход, платежи,\nоткрытие депозита", "HTTPS")
+Rel(ib_monolith, deposit_ms, "Делегирование\nдепозитных операций", "REST API")
+
+' ===== Связи: внутри ИБ =====
+Rel(deposit_ms, ib_db, "Чтение/запись заявок,\nкэш ставок", "SQL")
+Rel(ib_monolith, ib_db, "Данные клиентов, счета", "SQL")
+
+' ===== Связи: ИБ <-> Брокер =====
+Rel(deposit_ms, broker, "Отправка заявок", "AMQP")
+Rel(broker, deposit_ms, "Ставки, статусы заявок", "AMQP")
+
+' ===== Связи: Брокер <-> АБС =====
+Rel(broker, msg_adapter, "Заявки на депозит", "AMQP")
+Rel(msg_adapter, broker, "Ставки, статусы", "AMQP")
+Rel(msg_adapter, abs_db, "Вызов PL/SQL-процедур", "Oracle SQL/Net")
+
+' ===== Связи: Фронт-офис -> АБС =====
+Rel(fo_manager, abs_client, "Оформление депозита", "Delphi UI")
+
+' ===== Связи: Бэк-офис -> АБС =====
+Rel(bo_manager, abs_client, "Согласование заявок,\nуправление ставками", "Delphi UI")
+Rel(credit_analyst, abs_client, "Базовые ставки", "Delphi UI")
+Rel(abs_client, abs_db, "CRUD операции", "Oracle SQL/Net")
+
+' ===== Связи: Кол-центр =====
+Rel(cc_operator, cc_system, "Обработка заявок", "Web UI")
+
+' ===== Связи: Внешние системы =====
+Rel(visitor, site, "Просмотр, заявка", "HTTPS")
+Rel(site, deposit_ms, "Запрос актуальных ставок", "REST API")
+Rel(site, cc_system, "Передача заявки", "REST API")
+Rel(deposit_ms, sms_gw, "СМС-код подтверждения", "API / HTTPS")
+Rel(msg_adapter, sms_gw, "СМС-уведомления", "API / HTTPS")
+
+@enduml

@@ -1,0 +1,57 @@
+@startuml c4_context
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
+LAYOUT_WITH_LEGEND()
+LAYOUT_TOP_DOWN()
+
+title Схема контекста — Банк «Стандарт» (C4 System Context, TO-BE MVP)
+
+' ===== Действующие лица =====
+Person(client, "Клиент банка", "Существующий клиент.\nОткрывает депозит через ИБ\nили в отделении")
+Person(visitor, "Посетитель сайта", "Потенциальный клиент.\nПодаёт заявку на сайте")
+Person(fo_manager, "Менеджер фронт-офиса", "Сотрудник отделения.\nОформляет депозиты клиентам")
+Person(cc_operator, "Оператор кол-центра", "Обрабатывает заявки с сайта")
+Person(bo_manager, "Менеджер бэк-офиса", "Согласовывает ставки,\nподтверждает заявки в АБС")
+Person(credit_analyst, "Кредитный аналитик", "Управляет базовыми ставками в АБС")
+
+' ===== Внутренние системы =====
+System(site, "Сайт", "PHP, React.js\nВитрина депозитов, форма заявки")
+System(ibank, "Интернет-банк", "ASP.NET MVC, .NET, MS SQL\n+ Микросервис депозитов (NEW)\nОнлайн-банкинг с функцией открытия депозита")
+System(cc_system, "Система кол-центра", "Java Spring Boot, PostgreSQL\nОбработка заявок с сайта")
+System(abs, "АБС", "Delphi, Oracle DB, PL/SQL\n+ Адаптер сообщений (NEW)\nУчёт операций, ведение ставок")
+System(sms_gw, "СМС-шлюз", "Отправка СМС-уведомлений и кодов")
+
+' ===== Внешние системы =====
+System_Ext(partner_cc, "Партнёрский кол-центр", "Внешний кол-центр")
+System_Ext(telecom, "Телеком-оператор", "Доставка СМС")
+
+' ===== Связи: Посетитель сайта =====
+Rel(visitor, site, "Просмотр депозитов,\nподача заявки", "HTTPS")
+Rel(client, site, "Просмотр депозитов", "HTTPS")
+Rel(site, ibank, "Запрос актуальных ставок", "REST API / HTTPS")
+Rel(site, cc_system, "Передача заявки", "REST API / HTTPS")
+
+' ===== Связи: Клиент ИБ =====
+Rel(client, ibank, "Открытие депозита,\nпросмотр ставок", "HTTPS")
+
+' ===== Связи: Фронт-офис =====
+Rel(client, fo_manager, "Визит в отделение")
+Rel(fo_manager, abs, "Оформление депозита", "Delphi UI")
+
+' ===== Связи: Кол-центр =====
+Rel(cc_operator, cc_system, "Обработка заявок", "Web UI")
+Rel(cc_system, partner_cc, "Переадресация", "API")
+
+' ===== Связи: ИБ <-> АБС (асинхронно) =====
+Rel(ibank, abs, "Заявки на депозит,\nобновления ставок и статусов", "Асинхронно через брокер\nсообщений RabbitMQ (AMQP)")
+
+' ===== Связи: Сотрудники -> АБС =====
+Rel(bo_manager, abs, "Согласование заявок,\nведение ставок", "Delphi UI")
+Rel(credit_analyst, abs, "Управление базовыми ставками", "Delphi UI")
+
+' ===== Связи: СМС =====
+Rel(ibank, sms_gw, "СМС-код подтверждения", "API")
+Rel(abs, sms_gw, "СМС-уведомления", "API")
+Rel(sms_gw, telecom, "Доставка СМС", "API")
+
+@enduml

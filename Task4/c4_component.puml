@@ -1,0 +1,70 @@
+@startuml c4_component_task4
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_WITH_LEGEND()
+LAYOUT_TOP_DOWN()
+
+title Диаграмма компонентов — Доступ к ставкам для кол-центров (C4 Component, TO-BE)
+
+' ===== Действующие лица =====
+Person(cc_operator, "Оператор кол-центра", "Консультирует клиентов\nпо ставкам депозитов")
+Person(partner_operator, "Оператор партнёрского КЦ", "Консультирует клиентов\nпо ставкам из файла")
+Person(credit_analyst, "Кредитный аналитик", "Управление базовыми\nставками в АБС")
+Person(bo_manager, "Менеджер бэк-офиса", "Назначение спецставок\nв АБС")
+
+' ===== АБС: детализация сервиса интеграции депозитов =====
+System_Boundary(abs_boundary, "АБС") {
+    Container(abs_client, "Клиент АБС", "Delphi Desktop", "UI для сотрудников:\nведение ставок")
+    ContainerDb(abs_db, "БД АБС", "Oracle DB, PL/SQL", "Источник ставок,\nбизнес-логика")
+
+    Container_Boundary(integration_boundary, "Сервис интеграции депозитов (Java)") {
+        Component(rate_api, "REST API ставок", "Java, Spring Boot", "GET /api/v1/rates\nПредоставляет актуальные\nставки по HTTP/REST")
+        Component(rate_reader, "Модуль чтения ставок", "Java, JDBC", "Читает ставки из Oracle DB.\nКэширует in-memory\nдля снижения нагрузки на БД")
+        Component(rate_monitor, "Монитор изменений", "Java, Scheduler", "Отслеживает изменения ставок\nв БД АБС по расписанию\n(не реже 1 раза в час)")
+        Component(csv_generator, "Генератор CSV-файлов", "Java", "Формирует CSV-файл\nсо ставками:\nпродукт, срок, сумма,\nставка, дата актуальности")
+        Component(sftp_client, "SFTP-клиент", "Java, JSch/SSHJ", "Выгружает CSV-файл\nна SFTP-сервер в DMZ")
+        Component(audit_logger, "Модуль аудита", "Java, SLF4J", "Логирование всех запросов\nк API и операций\nвыгрузки файлов")
+    }
+}
+
+' ===== SFTP-сервер =====
+Container(sftp_server, "SFTP-сервер", "OpenSSH, DMZ", "Хранение CSV-файлов\nсо ставками.\nДоступ по SSH-ключам")
+
+' ===== Система кол-центра: детализация =====
+System_Boundary(cc_boundary, "Система кол-центра") {
+    Component(cc_ui, "UI кол-центра", "React.js", "NEW: экран отображения\nставок оператору")
+    Component(cc_rate_client, "Клиент API ставок", "Java, Spring Boot", "NEW: REST-клиент для\nполучения ставок от\nсервиса интеграции АБС")
+    Component(cc_rate_cache, "Кэш ставок", "In-memory / PostgreSQL", "Кэширование ставок\nдля отказоустойчивости")
+    ComponentDb(cc_db, "БД кол-центра", "PostgreSQL", "Данные обращений\nи заявок")
+}
+
+' ===== Внешняя система =====
+System_Ext(partner_cc, "Система партнёрского КЦ", "Внешняя система.\nSFTP-клиент для\nполучения файлов")
+
+' ===== Связи: Сотрудники -> АБС =====
+Rel(credit_analyst, abs_client, "Базовые ставки", "Delphi UI")
+Rel(bo_manager, abs_client, "Спецставки", "Delphi UI")
+Rel(abs_client, abs_db, "CRUD операции", "Oracle SQL/Net")
+
+' ===== Связи: Внутри сервиса интеграции =====
+Rel(rate_monitor, abs_db, "Опрос изменений\nставок", "JDBC / Oracle SQL/Net")
+Rel(rate_monitor, rate_reader, "Триггер обновления\nкэша и файла")
+Rel(rate_reader, abs_db, "Чтение ставок", "JDBC / Oracle SQL/Net")
+Rel(rate_api, rate_reader, "Получение актуальных\nставок из кэша")
+Rel(rate_api, audit_logger, "Логирование запросов")
+Rel(rate_monitor, csv_generator, "Передача обновлённых\nставок")
+Rel(csv_generator, sftp_client, "CSV-файл")
+Rel(sftp_client, sftp_server, "Выгрузка CSV", "SFTP")
+Rel(sftp_client, audit_logger, "Логирование выгрузки")
+
+' ===== Связи: Система КЦ =====
+Rel(cc_operator, cc_ui, "Просмотр ставок", "Web UI / HTTPS")
+Rel(cc_ui, cc_rate_client, "Запрос ставок", "REST API")
+Rel(cc_rate_client, rate_api, "Получение актуальных\nставок", "REST API / HTTPS")
+Rel(cc_rate_client, cc_rate_cache, "Чтение/запись кэша")
+
+' ===== Связи: Партнёрский КЦ =====
+Rel(partner_operator, partner_cc, "Просмотр ставок", "UI")
+Rel(partner_cc, sftp_server, "Получение CSV-файла\nсо ставками", "SFTP")
+
+@enduml
